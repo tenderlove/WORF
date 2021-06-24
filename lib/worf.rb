@@ -27,8 +27,45 @@ module WORF
   class Tag
     attr_reader :index, :type
 
+    FORM_TO_UNPACK = {
+      Constants::DW_FORM_addr       => "Q",
+      Constants::DW_FORM_strp       => "L",
+      Constants::DW_FORM_data1      => "C",
+      Constants::DW_FORM_data2      => "S",
+      Constants::DW_FORM_data4      => "L",
+      Constants::DW_FORM_data8      => "Q",
+      Constants::DW_FORM_sec_offset => "L",
+      Constants::DW_FORM_ref_addr   => "L",
+      Constants::DW_FORM_ref4       => "L"
+    }
+
+    UNPACK_TO_LEN = {
+      "Q" => 8,
+      "L" => 4,
+      "C" => 1,
+      "S" => 2,
+    }
+
+    class FixedWidthTag < Tag
+      def initialize index, type, has_children, attr_names, attr_forms, unpack, readlen
+        super(index, type, has_children, attr_names, attr_forms)
+        @unpack = unpack
+        @readlen = readlen
+      end
+
+      def decode io, _
+        io.read(@readlen).unpack(@unpack)
+      end
+    end
+
     def self.build index, type, has_children, attr_names, attr_forms
-      new index, type, has_children, attr_names, attr_forms
+      if attr_forms.all? { |x| FORM_TO_UNPACK.key?(x) }
+        packs = attr_forms.map { |x| FORM_TO_UNPACK[x] }
+        readlen = packs.map { |p| UNPACK_TO_LEN[p] }.sum
+        FixedWidthTag.new index, type, has_children, attr_names, attr_forms, packs.join, readlen
+      else
+        new index, type, has_children, attr_names, attr_forms
+      end
     end
 
     def initialize index, type, has_children, attr_names, attr_forms
