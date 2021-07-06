@@ -524,4 +524,3 @@ module WORF
     result
   end
 end
-end

@@ -1,4 +1,4 @@
 source "https://rubygems.org"
 
 gem "minitest"
-gem "tendertools", git: "https://github.com/tenderlove/tendertools"
+gem "odinflex", git: "https://github.com/tenderlove/odinflex"
