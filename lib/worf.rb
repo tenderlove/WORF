@@ -1,9 +1,8 @@
 # frozen_string_literal: true
 
-require "tendertools/dwarf/constants"
+require "worf/constants"
 
-module TenderTools
-module DWARF
+module WORF
   module Constants
     TAG_TO_NAME = constants.grep(/TAG/).each_with_object([]) { |c, o|
       v = const_get(c)
@@ -78,7 +77,7 @@ module DWARF
         when Constants::DW_FORM_flag_present
           true
         when Constants::DW_FORM_exprloc
-          io.read(DWARF.unpackULEB128(io))
+          io.read(WORF.unpackULEB128(io))
         when Constants::DW_FORM_string
           str = []
           loop do
@@ -93,9 +92,9 @@ module DWARF
         when Constants::DW_FORM_block1
           io.read io.readbyte
         when Constants::DW_FORM_udata
-          DWARF.unpackULEB128 io
+          WORF.unpackULEB128 io
         when Constants::DW_FORM_sdata
-          DWARF.unpackSLEB128 io
+          WORF.unpackSLEB128 io
         else
           raise "Unhandled type: #{Constants.form_for(type)}"
         end
@@ -282,9 +281,9 @@ module DWARF
           fname = @io.readline("\0").chomp("\0")
           break if "" == fname
 
-          directory_idx = DWARF.unpackULEB128 @io
-          last_mod      = DWARF.unpackULEB128 @io
-          length        = DWARF.unpackULEB128 @io
+          directory_idx = WORF.unpackULEB128 @io
+          last_mod      = WORF.unpackULEB128 @io
+          length        = WORF.unpackULEB128 @io
           file_names << FileName.new(fname, directory_idx, last_mod, length)
         end
 
@@ -292,7 +291,7 @@ module DWARF
           code = @io.readbyte
           case code
           when 0 # extended operands
-            expected_size = DWARF.unpackULEB128 @io
+            expected_size = WORF.unpackULEB128 @io
             raise if expected_size == 0
 
             cur_pos = @io.pos
@@ -319,14 +318,14 @@ module DWARF
             registers.prologue_end   = false
             registers.epilogue_begin = false
           when Constants::DW_LNS_advance_pc
-            code = DWARF.unpackULEB128 @io
+            code = WORF.unpackULEB128 @io
             registers.address += (code * min_inst_length)
           when Constants::DW_LNS_advance_line
-            registers.line += DWARF.unpackSLEB128 @io
+            registers.line += WORF.unpackSLEB128 @io
           when Constants::DW_LNS_set_file
-            registers.file = DWARF.unpackULEB128 @io
+            registers.file = WORF.unpackULEB128 @io
           when Constants::DW_LNS_set_column
-            registers.column = DWARF.unpackULEB128 @io
+            registers.column = WORF.unpackULEB128 @io
           when Constants::DW_LNS_negate_stmt
             registers.is_stmt = !registers.is_stmt
           when Constants::DW_LNS_set_basic_block
@@ -403,7 +402,7 @@ module DWARF
           raise NotImplementedError, "only 8 bytes address size supported rn"
         end
         offset = @io.pos - @section.offset
-        abbrev_code = DWARF.unpackULEB128 @io
+        abbrev_code = WORF.unpackULEB128 @io
         tag = tags[abbrev_code - 1]
         cu = CompilationUnit.new(unit_length,
                                    dwarf_version,
@@ -423,7 +422,7 @@ module DWARF
       children = []
       loop do
         offset = io.pos - @section.offset
-        abbrev_code = DWARF.unpackULEB128 io
+        abbrev_code = WORF.unpackULEB128 io
 
         return children if abbrev_code == 0
 
@@ -473,14 +472,14 @@ module DWARF
     private
 
     def read_tag
-      abbreviation_code = DWARF.unpackULEB128 @io
-      name              = DWARF.unpackULEB128 @io
+      abbreviation_code = WORF.unpackULEB128 @io
+      name              = WORF.unpackULEB128 @io
       children_p        = @io.readbyte == Constants::DW_CHILDREN_yes
       attr_names = []
       attr_forms = []
       loop do
-        attr_name = DWARF.unpackULEB128 @io
-        attr_form = DWARF.unpackULEB128 @io
+        attr_name = WORF.unpackULEB128 @io
+        attr_form = WORF.unpackULEB128 @io
         break if attr_name == 0 && attr_form == 0
 
         attr_names << attr_name

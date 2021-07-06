@@ -1,4 +1,4 @@
-file 'lib/tendertools/dwarf/constants.rb' => ['lib/tendertools/dwarf/constants.yml', 'lib/tendertools/dwarf/constants.erb'] do |t|
+file 'lib/worf/constants.rb' => ['lib/worf/constants.yml', 'lib/worf/constants.erb'] do |t|
   require 'psych'
   require 'erb'
   constants = Psych.load_file t.prereqs.first
@@ -15,4 +15,4 @@ Rake::TestTask.new do |t|
   t.warning = true
 end
 
-task :default => 'lib/tendertools/dwarf/constants.rb'
+task :default => 'lib/worf/constants.rb'
