@@ -1,13 +1,13 @@
 require "helper"
 
-module TenderTools
+module WORF
   class MachODWARFIntegrationTest < Test
     def test_find_symbol_and_make_struct
       addr = nil
       archive = nil
 
       File.open(RbConfig.ruby) do |f|
-        my_macho = MachO.new f
+        my_macho = OdinFlex::MachO.new f
         my_macho.each do |section|
           if section.symtab?
             addr = section.nlist.find { |symbol|
@@ -25,13 +25,13 @@ module TenderTools
       found_object = nil
 
       File.open(archive) do |f|
-        ar = AR.new f
+        ar = OdinFlex::AR.new f
         ar.each do |object_file|
           next unless object_file.identifier.end_with?(".o")
           next unless object_file.identifier == "version.o"
 
           f.seek object_file.pos, IO::SEEK_SET
-          macho = MachO.new f
+          macho = OdinFlex::MachO.new f
           debug_info = macho.find_section("__debug_info")&.as_dwarf || next
           debug_strs = macho.find_section("__debug_str").as_dwarf
           debug_abbrev = macho.find_section("__debug_abbrev").as_dwarf

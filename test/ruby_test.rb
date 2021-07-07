@@ -1,7 +1,7 @@
 require "helper"
 
-module TenderTools
-  class RubyTest < TenderTools::Test
+module WORF
+  class RubyTest < WORF::Test
     def ruby_archive
       File.join RbConfig::CONFIG["prefix"], "lib", RbConfig::CONFIG["LIBRUBY"]
     end
@@ -13,7 +13,7 @@ module TenderTools
     def test_read_archive
       files = []
       File.open(ruby_archive) do |f|
-        AR.new(f).each { |file| files << file.identifier }
+        OdinFlex::AR.new(f).each { |file| files << file.identifier }
       end
       assert_includes files, "gc.o"
     end
@@ -21,7 +21,7 @@ module TenderTools
     def test_read_archive_twice
       files = []
       File.open(ruby_archive) do |f|
-        ar = AR.new(f)
+        ar = OdinFlex::AR.new(f)
         ar.each { |file| files << file.identifier }
         assert_includes files, "gc.o"
         files.clear
@@ -32,11 +32,11 @@ module TenderTools
 
     def test_macho_in_archive
       File.open(ruby_archive) do |f|
-        ar = AR.new f
+        ar = OdinFlex::AR.new f
         gc = ar.find { |file| file.identifier == "gc.o" }
 
         f.seek gc.pos, IO::SEEK_SET
-        macho = MachO.new f
+        macho = OdinFlex::MachO.new f
         section = macho.find_section("__debug_str")
         assert_equal "__debug_str", section.sectname
       end
@@ -44,11 +44,11 @@ module TenderTools
 
     def test_macho_to_dwarf
       File.open(ruby_archive) do |f|
-        ar = AR.new f
+        ar = OdinFlex::AR.new f
         gc = ar.find { |file| file.identifier == "gc.o" }
 
         f.seek gc.pos, IO::SEEK_SET
-        macho = MachO.new f
+        macho = OdinFlex::MachO.new f
         debug_strs = macho.find_section("__debug_str").as_dwarf
         debug_abbrev = macho.find_section("__debug_abbrev").as_dwarf
         debug_info = macho.find_section("__debug_info").as_dwarf
@@ -67,11 +67,11 @@ module TenderTools
 
     def test_rbasic_layout
       File.open(ruby_archive) do |f|
-        ar = AR.new f
+        ar = OdinFlex::AR.new f
         gc = ar.find { |file| file.identifier == "gc.o" }
 
         f.seek gc.pos, IO::SEEK_SET
-        macho = MachO.new f
+        macho = OdinFlex::MachO.new f
         debug_strs = macho.find_section("__debug_str").as_dwarf
         debug_abbrev = macho.find_section("__debug_abbrev").as_dwarf
         debug_info = macho.find_section("__debug_info").as_dwarf
@@ -104,11 +104,11 @@ module TenderTools
 
     def test_rclass_layout
       File.open(ruby_archive) do |f|
-        ar = AR.new f
+        ar = OdinFlex::AR.new f
         gc = ar.find { |file| file.identifier == "gc.o" }
 
         f.seek gc.pos, IO::SEEK_SET
-        macho = MachO.new f
+        macho = OdinFlex::MachO.new f
         debug_strs = macho.find_section("__debug_str").as_dwarf
         debug_abbrev = macho.find_section("__debug_abbrev").as_dwarf
         debug_info = macho.find_section("__debug_info").as_dwarf
@@ -156,15 +156,15 @@ module TenderTools
     end
 
     [
-      [:section?, MachO::Section],
-      [:symtab?, MachO::LC_SYMTAB],
-      [:segment?, MachO::LC_SEGMENT_64],
-      [:dysymtab?, MachO::LC_DYSYMTAB],
-      [:command?, MachO::Command],
+      [:section?, OdinFlex::MachO::Section],
+      [:symtab?, OdinFlex::MachO::LC_SYMTAB],
+      [:segment?, OdinFlex::MachO::LC_SEGMENT_64],
+      [:dysymtab?, OdinFlex::MachO::LC_DYSYMTAB],
+      [:command?, OdinFlex::MachO::Command],
     ].each do |predicate, klass|
       define_method :"test_find_#{predicate}" do
         File.open(RbConfig.ruby) do |f|
-          my_macho = MachO.new f
+          my_macho = OdinFlex::MachO.new f
           list = my_macho.find_all(&predicate)
           refute_predicate list, :empty?
           assert list.all? { |x| x.is_a?(klass) }
@@ -176,7 +176,7 @@ module TenderTools
       sym = nil
 
       File.open(RbConfig.ruby) do |f|
-        my_macho = MachO.new f
+        my_macho = OdinFlex::MachO.new f
 
         my_macho.each do |section|
           if section.symtab?
@@ -191,12 +191,12 @@ module TenderTools
       addr = sym.value + Hacks.slide
       ptr = Fiddle::Function.new(addr, [], TYPE_VOIDP).call
       len = RubyVM::INSTRUCTION_NAMES.length
-      p ptr[0, len * Fiddle::SIZEOF_VOIDP].unpack("Q#{len}")
+      assert ptr[0, len * Fiddle::SIZEOF_VOIDP].unpack("Q#{len}")
     end
 
     def test_guess_slide
       File.open(RbConfig.ruby) do |f|
-        my_macho = MachO.new f
+        my_macho = OdinFlex::MachO.new f
 
         my_macho.each do |section|
           if section.symtab?
@@ -213,7 +213,7 @@ module TenderTools
 
     def test_find_global
       File.open(RbConfig.ruby) do |f|
-        my_macho = MachO.new f
+        my_macho = OdinFlex::MachO.new f
 
         my_macho.each do |section|
           if section.symtab?

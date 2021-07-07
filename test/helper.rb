@@ -1,15 +1,13 @@
 ENV["MT_NO_PLUGINS"] = "1"
 
 require "minitest/autorun"
-require "tendertools/mach-o"
-require "tendertools/dwarf"
-require "tendertools/ar"
+require "worf"
+require "odinflex/mach-o"
+require "odinflex/ar"
 require "rbconfig"
 require "fiddle"
-require "fisk"
-require "fisk/helpers"
 
-module TenderTools
+module WORF
   class Test < Minitest::Test
     include Fiddle
 
@@ -56,20 +54,6 @@ module TenderTools
           end
         end
       end
-
-      fisk = Fisk.new
-
-      jitbuf = Fisk::Helpers.jitbuffer 4096
-
-      fisk.asm(jitbuf) do
-        push rbp
-        mov rbp, rsp
-        int lit(3)
-        pop rbp
-        ret
-      end
-
-      define_singleton_method :halt!, &jitbuf.to_function([], Fiddle::TYPE_VOID)
     end
   end
 end

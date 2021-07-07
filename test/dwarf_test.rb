@@ -1,8 +1,6 @@
 ENV["MT_NO_PLUGINS"] = "1"
 
-require "minitest/autorun"
-require "tendertools/mach-o"
-require "worf"
+require "helper"
 
 module WORF
   class Test < Minitest::Test
@@ -22,7 +20,7 @@ module WORF
 
     def test_debug_abbrev
       File.open DEBUG_FILE do |io|
-        mach_o = MachO.new(io)
+        mach_o = OdinFlex::MachO.new(io)
 
         section = mach_o.find do |thing|
           thing.section? && thing.sectname == "__debug_abbrev"
@@ -37,7 +35,7 @@ module WORF
 
     def test_debug_info
       File.open DEBUG_FILE do |io|
-        mach_o = MachO.new(io)
+        mach_o = OdinFlex::MachO.new(io)
 
         abbrev = mach_o.find do |thing|
           thing.section? && thing.sectname == "__debug_abbrev"
@@ -100,7 +98,7 @@ module WORF
       struct_info = nil
 
       File.open SLOP do |io|
-        mach_o = MachO.new(io)
+        mach_o = OdinFlex::MachO.new(io)
 
         abbrev = mach_o.find_section "__debug_abbrev"
         debug_abbrev = WORF::DebugAbbrev.new io, abbrev, mach_o.start_pos
