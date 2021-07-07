@@ -9,4 +9,7 @@ Gem::Specification.new do |s|
   s.test_files  = s.files.grep(%r{^test/})
   s.homepage    = "https://github.com/tenderlove/worf"
   s.license     = "Apache-2.0"
+  s.add_development_dependency 'minitest', '~> 5.14'
+  s.add_development_dependency 'rake', '~> 13.0'
+  s.add_development_dependency 'odinflex', '~> 1.0'
 end
