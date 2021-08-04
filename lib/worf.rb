@@ -202,6 +202,14 @@ module WORF
       at Constants::DW_AT_byte_size
     end
 
+    def bit_size
+      at Constants::DW_AT_bit_size
+    end
+
+    def bit_offset
+      at Constants::DW_AT_bit_offset
+    end
+
     def type
       at Constants::DW_AT_type
     end
@@ -212,6 +220,10 @@ module WORF
 
     def const_value
       at Constants::DW_AT_const_value
+    end
+
+    def data_bit_offset
+      at Constants::DW_AT_data_bit_offset
     end
 
     def name strings
