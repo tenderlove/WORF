@@ -12,7 +12,7 @@ module WORF
           if section.symtab?
             addr = section.nlist.find { |symbol|
               symbol.name == "_ruby_api_version" && symbol.value > 0
-            }.value + Hacks.slide
+            }.value
 
             archive = section.nlist.find_all(&:archive?).map(&:archive).uniq.first
           end

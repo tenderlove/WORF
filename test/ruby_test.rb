@@ -2,10 +2,6 @@ require "helper"
 
 module WORF
   class RubyTest < WORF::Test
-    def ruby_archive
-      File.join RbConfig::CONFIG["prefix"], "lib", RbConfig::CONFIG["LIBRUBY"]
-    end
-
     def test_ruby_archive
       assert File.file?(ruby_archive)
     end
@@ -174,56 +170,63 @@ module WORF
 
     def test_rb_vm_get_insns_address_table
       sym = nil
+      symbols = {}
 
       File.open(RbConfig.ruby) do |f|
         my_macho = OdinFlex::MachO.new f
 
         my_macho.each do |section|
           if section.symtab?
-            sym = section.nlist.find do |symbol|
-              symbol.name == "_rb_vm_get_insns_address_table" && symbol.value
+            section.nlist.each do |symbol|
+              name = symbol.name.delete_prefix(RbConfig::CONFIG["SYMBOL_PREFIX"])
+              symbols[name] = symbol.value
             end
-            break if sym
           end
         end
       end
 
-      addr = sym.value + Hacks.slide
-      ptr = Fiddle::Function.new(addr, [], TYPE_VOIDP).call
+      slide = Fiddle::Handle::DEFAULT["rb_st_insert"] - symbols["rb_st_insert"]
+      addr = symbols["rb_vm_get_insns_address_table"] + slide
+
+      ptr = Fiddle::Function.new(addr, [], Fiddle::TYPE_VOIDP).call
       len = RubyVM::INSTRUCTION_NAMES.length
       assert ptr[0, len * Fiddle::SIZEOF_VOIDP].unpack("Q#{len}")
     end
 
     def test_guess_slide
+      symbols = {}
+
       File.open(RbConfig.ruby) do |f|
         my_macho = OdinFlex::MachO.new f
 
         my_macho.each do |section|
           if section.symtab?
             section.nlist.each do |symbol|
-              if symbol.name == "_rb_st_insert"
-                guess_slide = Fiddle::Handle::DEFAULT["rb_st_insert"] - symbol.value
-                assert_equal Hacks.slide, guess_slide
-              end
+              name = symbol.name.delete_prefix(RbConfig::CONFIG["SYMBOL_PREFIX"])
+              symbols[name] = symbol.value
             end
           end
         end
       end
+
+      guess_slide = Fiddle::Handle::DEFAULT["rb_st_insert"] - symbols["rb_st_insert"]
+      update_addr = symbols["rb_st_update"] + guess_slide
+      assert_equal Fiddle::Handle::DEFAULT["rb_st_update"], update_addr
     end
 
     def test_find_global
+      symbols = {}
+
       File.open(RbConfig.ruby) do |f|
         my_macho = OdinFlex::MachO.new f
 
         my_macho.each do |section|
           if section.symtab?
             section.nlist.each do |symbol|
+              name = symbol.name.delete_prefix(RbConfig::CONFIG["SYMBOL_PREFIX"])
+              symbols[name] = symbol.value
               if symbol.name == "_ruby_api_version"
                 if symbol.value > 0
-                  addr = symbol.value + Hacks.slide
-                  pointer = Fiddle::Pointer.new(addr, Fiddle::SIZEOF_INT * 3)
-                  assert_equal RbConfig::CONFIG["ruby_version"].split(".").map(&:to_i),
-                    pointer[0, Fiddle::SIZEOF_INT * 3].unpack("LLL")
                 else
                   assert_predicate symbol, :stab?
                   assert_predicate symbol, :gsym?
@@ -233,6 +236,12 @@ module WORF
           end
         end
       end
+
+      slide = Fiddle::Handle::DEFAULT["rb_st_insert"] - symbols["rb_st_insert"]
+      addr = symbols["ruby_api_version"] + slide
+      pointer = Fiddle::Pointer.new(addr, Fiddle::SIZEOF_INT * 3)
+      assert_equal RbConfig::CONFIG["ruby_version"].split(".").map(&:to_i),
+        pointer[0, Fiddle::SIZEOF_INT * 3].unpack("LLL")
     end
   end
 end
