@@ -6,38 +6,6 @@ module WORF
       assert File.file?(ruby_archive)
     end
 
-    def test_read_archive
-      files = []
-      File.open(ruby_archive) do |f|
-        OdinFlex::AR.new(f).each { |file| files << file.identifier }
-      end
-      assert_includes files, "gc.o"
-    end
-
-    def test_read_archive_twice
-      files = []
-      File.open(ruby_archive) do |f|
-        ar = OdinFlex::AR.new(f)
-        ar.each { |file| files << file.identifier }
-        assert_includes files, "gc.o"
-        files.clear
-        ar.each { |file| files << file.identifier }
-        assert_includes files, "gc.o"
-      end
-    end
-
-    def test_macho_in_archive
-      File.open(ruby_archive) do |f|
-        ar = OdinFlex::AR.new f
-        gc = ar.find { |file| file.identifier == "gc.o" }
-
-        f.seek gc.pos, IO::SEEK_SET
-        macho = OdinFlex::MachO.new f
-        section = macho.find_section("__debug_str")
-        assert_equal "__debug_str", section.sectname
-      end
-    end
-
     def test_macho_to_dwarf
       File.open(ruby_archive) do |f|
         ar = OdinFlex::AR.new f
@@ -149,99 +117,6 @@ module WORF
                       ["class_serial", "long long unsigned int", 8]],
                      layout)
       end
-    end
-
-    [
-      [:section?, OdinFlex::MachO::Section],
-      [:symtab?, OdinFlex::MachO::LC_SYMTAB],
-      [:segment?, OdinFlex::MachO::LC_SEGMENT_64],
-      [:dysymtab?, OdinFlex::MachO::LC_DYSYMTAB],
-      [:command?, OdinFlex::MachO::Command],
-    ].each do |predicate, klass|
-      define_method :"test_find_#{predicate}" do
-        File.open(RbConfig.ruby) do |f|
-          my_macho = OdinFlex::MachO.new f
-          list = my_macho.find_all(&predicate)
-          refute_predicate list, :empty?
-          assert list.all? { |x| x.is_a?(klass) }
-        end
-      end
-    end
-
-    def test_rb_vm_get_insns_address_table
-      sym = nil
-      symbols = {}
-
-      File.open(RbConfig.ruby) do |f|
-        my_macho = OdinFlex::MachO.new f
-
-        my_macho.each do |section|
-          if section.symtab?
-            section.nlist.each do |symbol|
-              name = symbol.name.delete_prefix(RbConfig::CONFIG["SYMBOL_PREFIX"])
-              symbols[name] = symbol.value
-            end
-          end
-        end
-      end
-
-      slide = Fiddle::Handle::DEFAULT["rb_st_insert"] - symbols["rb_st_insert"]
-      addr = symbols["rb_vm_get_insns_address_table"] + slide
-
-      ptr = Fiddle::Function.new(addr, [], Fiddle::TYPE_VOIDP).call
-      len = RubyVM::INSTRUCTION_NAMES.length
-      assert ptr[0, len * Fiddle::SIZEOF_VOIDP].unpack("Q#{len}")
-    end
-
-    def test_guess_slide
-      symbols = {}
-
-      File.open(RbConfig.ruby) do |f|
-        my_macho = OdinFlex::MachO.new f
-
-        my_macho.each do |section|
-          if section.symtab?
-            section.nlist.each do |symbol|
-              name = symbol.name.delete_prefix(RbConfig::CONFIG["SYMBOL_PREFIX"])
-              symbols[name] = symbol.value
-            end
-          end
-        end
-      end
-
-      guess_slide = Fiddle::Handle::DEFAULT["rb_st_insert"] - symbols["rb_st_insert"]
-      update_addr = symbols["rb_st_update"] + guess_slide
-      assert_equal Fiddle::Handle::DEFAULT["rb_st_update"], update_addr
-    end
-
-    def test_find_global
-      symbols = {}
-
-      File.open(RbConfig.ruby) do |f|
-        my_macho = OdinFlex::MachO.new f
-
-        my_macho.each do |section|
-          if section.symtab?
-            section.nlist.each do |symbol|
-              name = symbol.name.delete_prefix(RbConfig::CONFIG["SYMBOL_PREFIX"])
-              symbols[name] = symbol.value
-              if symbol.name == "_ruby_api_version"
-                if symbol.value > 0
-                else
-                  assert_predicate symbol, :stab?
-                  assert_predicate symbol, :gsym?
-                end
-              end
-            end
-          end
-        end
-      end
-
-      slide = Fiddle::Handle::DEFAULT["rb_st_insert"] - symbols["rb_st_insert"]
-      addr = symbols["ruby_api_version"] + slide
-      pointer = Fiddle::Pointer.new(addr, Fiddle::SIZEOF_INT * 3)
-      assert_equal RbConfig::CONFIG["ruby_version"].split(".").map(&:to_i),
-        pointer[0, Fiddle::SIZEOF_INT * 3].unpack("LLL")
     end
   end
 end
