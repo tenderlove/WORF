@@ -52,26 +52,6 @@ module WORF
                    rbasic_layout)
     end
 
-    def dwarf_info
-      File.open(ruby_archive) do |f|
-        ar = OdinFlex::AR.new f
-        ar.each do |file|
-          next if file.identifier == "__.SYMDEF SORTED"
-
-          f.seek file.pos, IO::SEEK_SET
-          macho = OdinFlex::MachO.new f
-
-          debug_strs = macho.find_section("__debug_str")
-          debug_abbrev = macho.find_section("__debug_abbrev")
-          debug_info = macho.find_section("__debug_info")
-
-          next unless debug_strs && debug_abbrev && debug_info
-
-          yield debug_info.as_dwarf, debug_abbrev.as_dwarf, debug_strs.as_dwarf
-        end
-      end
-    end
-
     def test_rclass_layout
       dwarf_info do |info, abbr, strs|
         layout = []

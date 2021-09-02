@@ -12,4 +12,5 @@ Gem::Specification.new do |s|
   s.add_development_dependency 'minitest', '~> 5.14'
   s.add_development_dependency 'rake', '~> 13.0'
   s.add_development_dependency 'odinflex', '~> 1.0'
+  s.add_development_dependency 'elftools', '~> 1.1'
 end
