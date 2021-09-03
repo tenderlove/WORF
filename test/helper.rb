@@ -11,7 +11,10 @@ require "elftools"
 module WORF
   class Test < Minitest::Test
     def ruby_archive
-      File.join RbConfig::CONFIG["prefix"], "lib", RbConfig::CONFIG["LIBRUBY"]
+      x = File.join RbConfig::CONFIG["prefix"], "lib", RbConfig::CONFIG["LIBRUBY_A"]
+      puts File.exists?(x)
+      puts x
+      x
     end
 
     MACH_O = File.open(RbConfig.ruby) { |f| OdinFlex::MachO.is_macho? f }
