@@ -92,7 +92,7 @@ module WORF
 
     def attribute_info name
       i = index_of(name) || return
-      yield @attr_forms, i
+      yield @attr_forms[i], i
     end
 
     def index_of name
@@ -110,7 +110,12 @@ module WORF
         when Constants::DW_FORM_data8      then io.read(8).unpack1("Q")
         when Constants::DW_FORM_sec_offset then io.read(4).unpack1("L")
         when Constants::DW_FORM_ref_addr   then io.read(4).unpack1("L")
+        when Constants::DW_FORM_ref1       then io.read(1).unpack1("C")
+        when Constants::DW_FORM_ref2       then io.read(2).unpack1("S")
         when Constants::DW_FORM_ref4       then io.read(4).unpack1("L")
+        when Constants::DW_FORM_strx1      then io.read(1).unpack1("C")
+        when Constants::DW_FORM_strx2      then io.read(2).unpack1("S")
+        when Constants::DW_FORM_strx4      then io.read(4).unpack1("L")
         when Constants::DW_FORM_flag_present
           true
         when Constants::DW_FORM_exprloc
@@ -128,14 +133,31 @@ module WORF
           io.readbyte
         when Constants::DW_FORM_block1
           io.read io.readbyte
+        when Constants::DW_FORM_block2
+          io.read io.read(2).unpack1("S")
         when Constants::DW_FORM_udata
           WORF.unpackULEB128 io
         when Constants::DW_FORM_sdata
           WORF.unpackSLEB128 io
+        when Constants::DW_FORM_strx
+        when Constants::DW_FORM_addrx
+          WORF.unpackULEB128 io
         else
-          raise "Unhandled type: #{Constants.form_for(type)}"
+          raise "Unhandled type: #{Constants.form_for(type)} #{type.to_s(16)}"
         end
       end
+    end
+
+    def name
+      Constants.tag_for type
+    end
+
+    def attr_names
+      @attr_names.map { |k| Constants.at_for(k) || :Custom }
+    end
+
+    def attr_forms
+      @attr_forms.map { |k| Constants.form_for(k) }
     end
 
     def inspect
@@ -243,6 +265,37 @@ module WORF
     def each &block
       yield self
       children.each { |child| child.each(&block) }
+    end
+
+    def inspect strings = nil, level = 0
+      return super() unless strings
+
+      str = ''.dup
+      str << sprintf("%#010x", offset)
+      str << ": "
+      str << "  " * level
+      str << tag.name.to_s
+      str << "\n"
+      maxlen = tag.attr_names.map { |x| x.length }.max || 0
+      tag.attr_names.zip(tag.attr_forms).each_with_index do |(name, form), i|
+        str << " " * 14
+        str << "  " * level
+        str << name.to_s.ljust(maxlen)
+        str << " "
+        if form == :DW_FORM_strp
+          str << "(#{strings.string_at(attributes[i]).dump})"
+        else
+          str << form.to_s
+        end
+        str << "\n"
+      end
+
+      str << "\n"
+
+      children.each do |child|
+        str << child.inspect(strings, level + 1)
+      end
+      str
     end
 
     private
@@ -436,8 +489,10 @@ module WORF
       @head_pos     = head_pos
     end
 
-    def compile_units tags
+    def compile_units all_tags
       cus = []
+      relative_to = @section.offset
+
       @io.seek @head_pos + @section.offset, IO::SEEK_SET
       while @io.pos < @head_pos + @section.offset + @section.size
         unit_length, dwarf_version = @io.read(6).unpack("LS")
@@ -450,15 +505,18 @@ module WORF
         if address_size != 8
           raise NotImplementedError, "only 8 bytes address size supported rn"
         end
-        offset = @io.pos - @section.offset
+        tags = all_tags[cus.length]
+        offset = @io.pos - relative_to
         abbrev_code = WORF.unpackULEB128 @io
         tag = tags[abbrev_code - 1]
+
         cu = CompilationUnit.new(unit_length,
                                    dwarf_version,
                                    debug_abbrev_offset,
                                    address_size,
-                                   parse_die(@io, tags, tag, offset, address_size))
+                                   parse_die(@io, tags, tag, offset, relative_to, address_size))
         cus << cu
+        relative_to = @io.pos
       end
       cus
     ensure
@@ -467,27 +525,28 @@ module WORF
 
     private
 
-    def read_children io, tags, address_size
+    def read_children io, tags, relative_to, address_size
       children = []
       loop do
-        offset = io.pos - @section.offset
+        offset = io.pos - relative_to
+
         abbrev_code = WORF.unpackULEB128 io
 
         return children if abbrev_code == 0
 
         tag = tags.fetch(abbrev_code - 1)
-        die = parse_die io, tags, tag, offset, address_size
+        die = parse_die io, tags, tag, offset, relative_to, address_size
         children << die
       end
     end
 
     NO_CHILDREN = [].freeze
 
-    def parse_die io, tags, tag, offset, address_size
+    def parse_die io, tags, tag, offset, relative_to, address_size
       attributes = decode tag, address_size, io
 
       children = if tag.has_children?
-        read_children io, tags, address_size
+        read_children io, tags, relative_to, address_size
       else
         NO_CHILDREN
       end
@@ -509,19 +568,27 @@ module WORF
     def tags
       @tags ||= begin
                   @io.seek @head_pos + @section.offset, IO::SEEK_SET
-                  tags = []
+                  all_tags = [[]]
+                  cu_tags = all_tags.last
+
                   loop do
                     break if @io.pos + 1 >= @head_pos + @section.offset + @section.size
-                    tags << read_tag
+                    abbreviation_code = WORF.unpackULEB128 @io
+
+                    if abbreviation_code == 0
+                      all_tags << []
+                      cu_tags = all_tags.last
+                    else
+                      cu_tags << read_tag(abbreviation_code)
+                    end
                   end
-                  tags
+                  all_tags
                 end
     end
 
     private
 
-    def read_tag
-      abbreviation_code = WORF.unpackULEB128 @io
+    def read_tag abbreviation_code
       name              = WORF.unpackULEB128 @io
       children_p        = @io.readbyte == Constants::DW_CHILDREN_yes
       attr_names = []

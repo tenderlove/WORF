@@ -3,7 +3,7 @@ ENV["MT_NO_PLUGINS"] = "1"
 require "helper"
 
 module WORF
-  class Test < Minitest::Test
+  class DWARFTest < Minitest::Test
     debug_file = "fixtures/out.dSYM/Contents/Resources/DWARF/out"
     DEBUG_FILE = File.expand_path(File.join(__dir__, debug_file))
 
@@ -29,7 +29,8 @@ module WORF
         debug_abbrev = WORF::DebugAbbrev.new io, section, mach_o.start_pos
         tags = debug_abbrev.tags
 
-        assert_equal 5, tags.length
+        assert_equal 1, tags.length
+        assert_equal 5, tags.first.length
       end
     end
 
