@@ -17,7 +17,7 @@ jobs:
       - name: Set up Ruby
         uses: tenderlove/setup-ruby@e8fee183291aa58f045bf82273781ef93d0bd343
         with:
-          ruby-version: 3.0
+          ruby-version: "3.0.2"
       - name: Install dependencies
         run: bundle install
       - name: Run tests
