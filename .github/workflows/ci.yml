@@ -15,7 +15,7 @@ jobs:
       - uses: actions/checkout@v2
 
       - name: Set up Ruby
-        uses: tenderlove/setup-ruby@b3d7dd38e59eb5a0fda3b203bda1735ba3347cd0
+        uses: tenderlove/setup-ruby@cebe8d96a9e3ab26f5130cfe81e4d95c4d9c0e8a
         with:
           ruby-version: "3.0.2"
       - name: Install dependencies
