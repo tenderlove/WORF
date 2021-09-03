@@ -12,8 +12,8 @@ module WORF
   class Test < Minitest::Test
     def ruby_archive
       x = File.join RbConfig::CONFIG["prefix"], "lib", RbConfig::CONFIG["LIBRUBY_A"]
-      puts File.exists?(x)
-      puts x
+      p RbConfig::CONFIG
+      assert File.exist?(x)
       x
     end
 
