@@ -11,10 +11,7 @@ require "elftools"
 module WORF
   class Test < Minitest::Test
     def ruby_archive
-      x = File.join RbConfig::CONFIG["prefix"], "lib", RbConfig::CONFIG["LIBRUBY_A"]
-      p RbConfig::CONFIG
-      assert File.exist?(x)
-      x
+      File.join RbConfig::CONFIG["prefix"], "lib", RbConfig::CONFIG["LIBRUBY_A"]
     end
 
     MACH_O = File.open(RbConfig.ruby) { |f| OdinFlex::MachO.is_macho? f }
