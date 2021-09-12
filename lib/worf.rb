@@ -204,6 +204,10 @@ module WORF
       children.bsearch { |c_die| child.type <=> c_die.offset }
     end
 
+    def at_count
+      at Constants::DW_AT_count
+    end
+
     def location
       at Constants::DW_AT_location
     end
