@@ -204,53 +204,26 @@ module WORF
       children.bsearch { |c_die| child.type <=> c_die.offset }
     end
 
-    def at_count
-      at Constants::DW_AT_count
+    def self.make_method name, v
+      define_method(name) { at v }
     end
 
-    def location
-      at Constants::DW_AT_location
+    Constants.constants.grep(/DW_AT_/).each do |const|
+      make_method(const, Constants.const_get(const))
     end
 
-    def low_pc
-      at Constants::DW_AT_low_pc
-    end
-
-    def high_pc
-      at Constants::DW_AT_high_pc
-    end
-
-    def data_member_location
-      at Constants::DW_AT_data_member_location
-    end
-
-    def byte_size
-      at Constants::DW_AT_byte_size
-    end
-
-    def bit_size
-      at Constants::DW_AT_bit_size
-    end
-
-    def bit_offset
-      at Constants::DW_AT_bit_offset
-    end
-
-    def type
-      at Constants::DW_AT_type
-    end
-
-    def decl_file
-      at Constants::DW_AT_decl_file
-    end
-
-    def const_value
-      at Constants::DW_AT_const_value
-    end
-
-    def data_bit_offset
-      at Constants::DW_AT_data_bit_offset
-    end
+    alias :at_count :DW_AT_count
+    alias :location :DW_AT_location
+    alias :low_pc :DW_AT_low_pc
+    alias :high_pc :DW_AT_high_pc
+    alias :data_member_location :DW_AT_data_member_location
+    alias :byte_size :DW_AT_byte_size
+    alias :bit_size :DW_AT_bit_size
+    alias :bit_offset :DW_AT_bit_offset
+    alias :type :DW_AT_type
+    alias :decl_file :DW_AT_decl_file
+    alias :const_value :DW_AT_const_value
+    alias :data_bit_offset :DW_AT_data_bit_offset
 
     def name strings
       tag.attribute_info(Constants::DW_AT_name) do |form, i|
