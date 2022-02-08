@@ -7,6 +7,9 @@ module WORF
     debug_file = "fixtures/out.dSYM/Contents/Resources/DWARF/out"
     DEBUG_FILE = File.expand_path(File.join(__dir__, debug_file))
 
+    debug_file = "fixtures/d5.dSYM/Contents/Resources/DWARF/d5"
+    D5_DEBUG_FILE = File.expand_path(File.join(__dir__, debug_file))
+
     debug_file = "fixtures/a.out.dSYM/Contents/Resources/DWARF/a.out"
     SLOP = File.expand_path(File.join(__dir__, debug_file))
 
@@ -16,6 +19,22 @@ module WORF
 
     def test_sleb128
       assert_equal(-123456, WORF.unpackSLEB128(StringIO.new("\xC0\xBB\x78".b)))
+    end
+
+    def test_debug_abbrev_d5
+      File.open D5_DEBUG_FILE do |io|
+        mach_o = OdinFlex::MachO.new(io)
+
+        section = mach_o.find do |thing|
+          thing.section? && thing.sectname == "__debug_abbrev"
+        end
+
+        debug_abbrev = WORF::DebugAbbrev.new io, section, mach_o.start_pos
+        tags = debug_abbrev.tags
+
+        assert_equal 1, tags.length
+        assert_equal 8, tags.first.length
+      end
     end
 
     def test_debug_abbrev

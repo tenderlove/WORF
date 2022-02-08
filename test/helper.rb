@@ -31,10 +31,13 @@ module WORF
             debug_strs = macho.find_section("__debug_str")
             debug_abbrev = macho.find_section("__debug_abbrev")
             debug_info = macho.find_section("__debug_info")
+            debug_str_offs = macho.find_section("__debug_str_offs")
 
             next unless debug_strs && debug_abbrev && debug_info
 
-            yield debug_info.as_dwarf, debug_abbrev.as_dwarf, debug_strs.as_dwarf
+            offsets = debug_str_offs && debug_str_offs.as_dwarf
+
+            yield debug_info.as_dwarf, debug_abbrev.as_dwarf, debug_strs.as_dwarf, offsets
           end
         end
       else

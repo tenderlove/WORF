@@ -7,10 +7,10 @@ module WORF
     end
 
     def test_macho_to_dwarf
-      dwarf_info do |info, abbr, strs|
+      dwarf_info do |info, abbr, strs, offsets|
         info.compile_units(abbr.tags).each do |unit|
           unit.die.children.each do |die|
-            if die.name(strs) == "RBasic"
+            if die.name(strs, offsets) == "RBasic"
               assert true
               return
             end
@@ -24,18 +24,18 @@ module WORF
       rbasic_layout = []
       found = false
 
-      dwarf_info do |info, abbr, strs|
+      dwarf_info do |info, abbr, strs, offsets|
         info.compile_units(abbr.tags).each do |unit|
           die = unit.die.children.find { |needle|
-            needle.name(strs) == "RBasic"
+            needle.name(strs, offsets) == "RBasic"
           }
 
           if die
             die.children.each do |child|
-              field_name = child.name(strs)
+              field_name = child.name(strs, offsets)
               field_type = nil
               while child
-                field_type = child.name(strs)
+                field_type = child.name(strs, offsets)
                 break unless child.type
                 child = unit.die.find_type(child)
               end
@@ -53,18 +53,18 @@ module WORF
     end
 
     def test_rclass_layout
-      dwarf_info do |info, abbr, strs|
+      dwarf_info do |info, abbr, strs, offsets|
         layout = []
 
         info.compile_units(abbr.tags).each do |unit|
-          next unless unit.die.name(strs) == "gc.c"
+          next unless unit.die.name(strs, offsets) == "gc.c"
 
           unit.die.children.each do |die|
-            if die.name(strs) == "RClass"
+            if die.name(strs, offsets) == "RClass"
               assert_predicate die.tag, :structure_type?
 
               die.children.each do |child|
-                field_name = child.name(strs)
+                field_name = child.name(strs, offsets)
                 type = unit.die.find_type(child)
 
                 if type.tag.typedef?
@@ -75,7 +75,7 @@ module WORF
                   c = unit.die.find_type(type)
                   "#{c.name(strs)} *"
                 else
-                  type.name(strs)
+                  type.name(strs, offsets)
                 end
 
                 type_size = if type.tag.pointer_type?
@@ -89,14 +89,21 @@ module WORF
             end
           end
 
-          assert_equal([["basic", "RBasic", 16],
-                        ["super", "long unsigned int", 8],
-                        ["ptr", "rb_classext_struct *", 8],
-                        ["class_serial", "long long unsigned int", 8]],
-                layout)
+          case layout
+          in ([["basic", "RBasic", 16],
+               ["super", "long unsigned int", 8],
+               ["ptr", "rb_classext_struct *", 8],
+               ["class_serial", "long long unsigned int", 8]])
+            assert true
+          in ([["basic", "RBasic", 16],
+               ["super", "long unsigned int", 8],
+               ["class_serial", "long long unsigned int", 8]])
+            assert true
+          end
           return
         end
       end
+      flunk
     end
   end
 end
