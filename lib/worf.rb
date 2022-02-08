@@ -142,6 +142,8 @@ module WORF
         when Constants::DW_FORM_strx
         when Constants::DW_FORM_addrx
           WORF.unpackULEB128 io
+        when Constants::DW_FORM_rnglistx, Constants::DW_FORM_loclistx
+          WORF.unpackULEB128 io
         else
           raise "Unhandled type: #{Constants.form_for(type)} #{type.to_s(16)}"
         end
@@ -168,6 +170,42 @@ module WORF
       "[#{@index}] #{Constants.tag_for(@type)} #{@has_children ? "children" : "no children"}\n" +
         names.zip(forms).map { |k,v| "        #{k.to_s.ljust(maxlen)} #{v}" }.join("\n")
 
+    end
+  end
+
+  class DebugStringOffsets
+    def initialize io, section, head_pos
+      @io      = io
+      @section = section
+      @head_pos = head_pos
+      @unit_length = check_header
+    end
+
+    def number_of_strings
+      @unit_length / 4
+    end
+
+    def str_offset_for index
+      pos = @io.pos
+      @io.seek @head_pos + @section.offset + 8 + (index * 4), IO::SEEK_SET
+      @io.read(4).unpack1("L")
+    ensure
+      @io.seek pos, IO::SEEK_SET
+    end
+
+    private
+
+    def check_header
+      pos = @io.pos
+      @io.seek @head_pos + @section.offset, IO::SEEK_SET
+      unit_length = @io.read(4).unpack1("L")
+      version = @io.read(2).unpack1("S")
+      # DWARF 5 section 7.26 page 240
+      raise unless version == 5
+      raise unless @io.read(2).unpack1("S") == 0
+      unit_length
+    ensure
+      @io.seek pos, IO::SEEK_SET
     end
   end
 
@@ -225,10 +263,15 @@ module WORF
     alias :const_value :DW_AT_const_value
     alias :data_bit_offset :DW_AT_data_bit_offset
 
-    def name strings
+    def name strings, str_offsets = nil
       tag.attribute_info(Constants::DW_AT_name) do |form, i|
-        if form == Constants::DW_FORM_string
+        case form
+        when Constants::DW_FORM_string
           attributes[i]
+        when Constants::DW_FORM_strx1, Constants::DW_FORM_strx2, Constants::DW_FORM_strx3, Constants::DW_FORM_strx4
+          raise "String offset record found but no string offset object provided" unless str_offsets
+          offset = str_offsets.str_offset_for(attributes[i])
+          strings.string_at(offset)
         else
           strings.string_at(attributes[i])
         end
@@ -244,7 +287,7 @@ module WORF
       children.each { |child| child.each(&block) }
     end
 
-    def inspect strings = nil, level = 0
+    def inspect strings = nil, string_offsets = nil, level = 0
       return super() unless strings
 
       str = ''.dup
@@ -259,8 +302,13 @@ module WORF
         str << "  " * level
         str << name.to_s.ljust(maxlen)
         str << " "
-        if form == :DW_FORM_strp
+        case form
+        when :DW_FORM_strp
           str << "(#{strings.string_at(attributes[i]).dump})"
+        when :DW_FORM_strx1, :DW_FORM_strx2, :DW_FORM_strx3, :DW_FORM_strx4
+          off = string_offsets.str_offset_for(attributes[i])
+          sto = strings.string_at(off).dump
+          str << "(#{sto})"
         else
           str << form.to_s
         end
@@ -270,7 +318,7 @@ module WORF
       str << "\n"
 
       children.each do |child|
-        str << child.inspect(strings, level + 1)
+        str << child.inspect(strings, string_offsets, level + 1)
       end
       str
     end
@@ -457,7 +505,7 @@ module WORF
     end
   end
 
-  CompilationUnit = Struct.new(:unit_length, :version, :debug_abbrev_offset, :address_size, :die)
+  CompilationUnit = Struct.new(:unit_length, :version, :unit_type, :debug_abbrev_offset, :address_size, :die)
 
   class DebugInfo
     def initialize io, section, head_pos
@@ -473,12 +521,19 @@ module WORF
       @io.seek @head_pos + @section.offset, IO::SEEK_SET
       while @io.pos < @head_pos + @section.offset + @section.size
         unit_length, dwarf_version = @io.read(6).unpack("LS")
-        if dwarf_version != 4
-          raise NotImplementedError, "Only DWARF4 rn #{dwarf_version}"
+        case dwarf_version
+        when 4
+          debug_abbrev_offset = @io.read(4).unpack1("L")
+          address_size = @io.readbyte
+          unit_type = Constants::DW_UT_compile
+        when 5
+          unit_type = @io.readbyte
+          address_size = @io.readbyte
+          debug_abbrev_offset = @io.read(4).unpack1("L")
+        else
+          raise NotImplementedError, "Only DWARF4 and DWARF5 supported right now: #{dwarf_version}"
         end
 
-        debug_abbrev_offset = @io.read(4).unpack1("L")
-        address_size = @io.readbyte
         if address_size != 8
           raise NotImplementedError, "only 8 bytes address size supported rn"
         end
@@ -489,6 +544,7 @@ module WORF
 
         cu = CompilationUnit.new(unit_length,
                                    dwarf_version,
+                                   unit_type,
                                    debug_abbrev_offset,
                                    address_size,
                                    parse_die(@io, tags, tag, offset, relative_to, address_size))
