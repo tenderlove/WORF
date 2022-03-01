@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "worf/constants"
+require "worf/elf_file"
 
 module WORF
   module Constants
@@ -104,6 +105,7 @@ module WORF
         case type
         when Constants::DW_FORM_addr       then io.read(8).unpack1("Q")
         when Constants::DW_FORM_strp       then io.read(4).unpack1("L")
+        when Constants::DW_FORM_line_strp  then io.read(4).unpack1("L")
         when Constants::DW_FORM_data1      then io.read(1).unpack1("C")
         when Constants::DW_FORM_data2      then io.read(2).unpack1("S")
         when Constants::DW_FORM_data4      then io.read(4).unpack1("L")
@@ -218,6 +220,10 @@ module WORF
       @head_pos = head_pos
     end
 
+    def section_name
+      @section.name
+    end
+
     def string_at offset
       pos = @io.pos
       @io.seek @head_pos + @section.offset + offset, IO::SEEK_SET
@@ -265,17 +271,25 @@ module WORF
     alias :const_value :DW_AT_const_value
     alias :data_bit_offset :DW_AT_data_bit_offset
 
-    def name strings, str_offsets = nil
+    def name *sections_arr
+      sections = {}
+      sections_arr.compact.each do |section|
+        sections[section.section_name.gsub(/\A[._]*/, "").to_sym] = section
+      end
+
       tag.attribute_info(Constants::DW_AT_name) do |form, i|
         case form
         when Constants::DW_FORM_string
           attributes[i]
         when Constants::DW_FORM_strx1, Constants::DW_FORM_strx2, Constants::DW_FORM_strx3, Constants::DW_FORM_strx4
+          str_offsets = sections[:debug_str_offs]
           raise "String offset record found but no string offset object provided" unless str_offsets
           offset = str_offsets.str_offset_for(attributes[i])
-          strings.string_at(offset)
+          sections.fetch(:debug_str).string_at(offset)
+        when Constants::DW_FORM_line_strp
+          sections.fetch(:debug_line_str).string_at(attributes[i])
         else
-          strings.string_at(attributes[i])
+          sections.fetch(:debug_str).string_at(attributes[i])
         end
       end
     end
