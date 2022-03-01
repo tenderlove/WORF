@@ -144,6 +144,8 @@ module WORF
           WORF.unpackULEB128 io
         when Constants::DW_FORM_rnglistx, Constants::DW_FORM_loclistx
           WORF.unpackULEB128 io
+        when FormImplicitConst
+          type.val
         else
           raise "Unhandled type: #{Constants.form_for(type)} #{type.to_s(16)}"
         end
@@ -591,6 +593,20 @@ module WORF
     end
   end
 
+  FormImplicitConst = Struct.new(:val) do
+    def to_int
+      Constants::DW_FORM_implicit_const
+    end
+
+    def == other
+      super || to_int == other
+    end
+
+    def to_s radix=10
+      to_int.to_s radix
+    end
+  end
+
   class DebugAbbrev
     def initialize io, section, head_pos
       @io      = io
@@ -630,6 +646,13 @@ module WORF
         attr_name = WORF.unpackULEB128 @io
         attr_form = WORF.unpackULEB128 @io
         break if attr_name == 0 && attr_form == 0
+
+        if attr_form == Constants::DW_FORM_implicit_const
+          # DW_FORM_implicit_const is followed immediately by a signed LEB128
+          # number. Dwarf format version 5 section 7.5.3
+          attr_val = WORF.unpackSLEB128 @io
+          attr_form = FormImplicitConst.new(attr_val)
+        end
 
         attr_names << attr_name
         attr_forms << attr_form
