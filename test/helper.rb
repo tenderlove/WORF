@@ -18,7 +18,22 @@ module WORF
 
     ELFAdapter = Struct.new(:offset, :size)
 
+    def dwarf_info_from_adapter adapter
+      [
+        adapter.find_section("__debug_info"),
+        adapter.find_section("__debug_abbrev"),
+        adapter.find_section("__debug_str"),
+        adapter.find_section("__debug_str_offs") || adapter.find_section(".debug_line_str"),
+      ].map { |s| s&.as_dwarf }
+    end
+
     def dwarf_info
+      with_adapter do |adapter|
+        yield(*dwarf_info_from_adapter(adapter))
+      end
+    end
+
+    def with_adapter
       if MACH_O
         File.open(ruby_archive) do |f|
           ar = OdinFlex::AR.new f
@@ -31,32 +46,15 @@ module WORF
             debug_strs = macho.find_section("__debug_str")
             debug_abbrev = macho.find_section("__debug_abbrev")
             debug_info = macho.find_section("__debug_info")
-            debug_str_offs = macho.find_section("__debug_str_offs")
 
             next unless debug_strs && debug_abbrev && debug_info
-
-            offsets = debug_str_offs && debug_str_offs.as_dwarf
-
-            yield debug_info.as_dwarf, debug_abbrev.as_dwarf, debug_strs.as_dwarf, offsets
+            yield macho
           end
         end
       else
         File.open(RbConfig.ruby) do |f|
-          elf = ELFTools::ELFFile.new f
-          debug_info   = elf.section_by_name(".debug_info")
-          debug_abbrev = elf.section_by_name(".debug_abbrev")
-          debug_str    = elf.section_by_name(".debug_str")
-
-          info = WORF::DebugInfo.new(f, ELFAdapter.new(debug_info.header.sh_offset,
-                                                       debug_info.header.sh_size), 0)
-
-          abbr = WORF::DebugAbbrev.new(f, ELFAdapter.new(debug_abbrev.header.sh_offset,
-                                                         debug_abbrev.header.sh_size), 0)
-
-          strs = WORF::DebugStrings.new(f, ELFAdapter.new(debug_str.header.sh_offset,
-                                                          debug_str.header.sh_size), 0)
-
-          yield info, abbr, strs
+          elf = ELFFile.new(f)
+          yield elf
         end
       end
     end
